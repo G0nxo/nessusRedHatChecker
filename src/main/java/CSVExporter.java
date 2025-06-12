@@ -8,10 +8,11 @@ public class CSVExporter {
 
     public static void export(List<CVEDetail> details, String fileName) {
         try (CSVWriter writer = new CSVWriter(new FileWriter(fileName))) {
-            String[] header = {
-                    "CVE ID", "Severity", "Public Date", "CVSS Score", "Product Name", "Package", "Advisory", "Fix State", "Description"
-            };
-            writer.writeNext(header);
+
+            writer.writeNext(new String[]{
+                    "CVE ID", "Severity", "Public Date", "CVSS Score",
+                    "Product", "Package", "Advisory", "Fix State", "Description"
+            });
 
             for (CVEDetail detail : details) {
                 writer.writeNext(detail.toCSVRow());
@@ -19,7 +20,7 @@ public class CSVExporter {
 
             System.out.println("Exported to " + fileName);
         } catch (IOException e) {
-            System.out.println("Error while exporting CSV: " + e.getMessage());
+            System.out.println("Error exporting CSV: " + e.getMessage());
         }
     }
 }

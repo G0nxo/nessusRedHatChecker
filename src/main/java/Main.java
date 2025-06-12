@@ -41,10 +41,8 @@ public class Main {
 
             System.out.print("\r" + bar);
 
-            CVEDetail detail = RedHatAPI.fetchCVEDetail(cve, productName);
-            if (detail != null) {
-                results.add(detail);
-            }
+            List<CVEDetail> detailList = RedHatAPI.fetchCVEDetails(cve, productName);
+            results.addAll(detailList);
 
             try {
                 Thread.sleep(100);

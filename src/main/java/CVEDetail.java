@@ -96,6 +96,26 @@ public class CVEDetail {
     }
 
     public String[] toCSVRow() {
-        return new String[]{cvdId, severity, publicDate, cvssScore, productName, packageName, advisory, fixState, description};
+        return new String[]{
+                sanitize(cvdId),
+                sanitize(severity),
+                sanitize(publicDate),
+                sanitize(cvssScore),
+                sanitize(productName),
+                sanitize(packageName),
+                advisory != null ? sanitize(advisory) : "",
+                fixState != null ? sanitize(fixState) : "",
+                sanitize(description)
+        };
+    }
+
+
+    private String sanitize(String input) {
+        if (input == null) return "";
+        return input
+                .replaceAll("[\\r\\n]+", " ")
+                .replaceAll("\\t", " ")
+                .replaceAll(" +", " ")
+                .replace("\"", "\"\"");
     }
 }

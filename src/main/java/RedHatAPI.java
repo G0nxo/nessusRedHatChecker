@@ -1,86 +1,88 @@
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.json.JSONTokener;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 
 public class RedHatAPI {
-    public static CVEDetail fetchCVEDetail(String cveId, String productFilter) throws IOException {
+
+    public static List<CVEDetail> fetchCVEDetails(String cve, String productFilter) {
+        List<CVEDetail> details = new ArrayList<>();
         try {
-            String urlString = "https://access.redhat.com/hydra/rest/securitydata/cve/" + cveId + ".json";
-            URL url = new URL(urlString);
-
+            URL url = new URL("https://access.redhat.com/hydra/rest/securitydata/cve/" + cve + ".json");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
 
-            if (conn.getResponseCode() != 200) {
-                System.out.println("Error: " + conn.getResponseMessage());
-                System.out.println("Error: couldn't find information for: " + cveId);
-                return null;
-            }
+            try (InputStream is = conn.getInputStream()) {
+                JSONObject obj = new JSONObject(new JSONTokener(is));
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            StringBuilder jsonText = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                jsonText.append(line);
-            }
-            reader.close();
+                String severity = obj.optString("threat_severity", "N/A");
+                String publicDate = obj.optString("public_date", "N/A");
+                String cvssScore = obj.optJSONObject("cvss3") != null
+                        ? obj.getJSONObject("cvss3").optString("cvss3_base_score", "N/A")
+                        : "N/A";
 
-            JSONObject jsonObject = new JSONObject(jsonText.toString());
-
-            String severity = jsonObject.optString("threat_severity", "N/A");
-            String publicDate = jsonObject.optString("public_date", "N/A");
-            String cvssScore = jsonObject.has("cvss3") ? jsonObject.getJSONObject("cvss3").optString("cvss3_base_score", "N/A") : "N/A";
-            String description = jsonObject.has("bugzilla") ? jsonObject.getJSONObject("bugzilla").optString("description", "N/A") : "N/A";
-
-            JSONArray affectedReleases = jsonObject.optJSONArray("affected_release");
-            if (affectedReleases != null) {
-                for (int i = 0; i < affectedReleases.length(); i++) {
-                    JSONObject rel = affectedReleases.getJSONObject(i);
-                    String productName = rel.optString("product_name");
-                    if (productName != null && productName.toLowerCase().contains(productFilter.toLowerCase())) {
-                        return new CVEDetail(
-                                cveId,
-                                severity,
-                                publicDate,
-                                cvssScore,
-                                productName,
-                                rel.optString("package", "N/A"),
-                                rel.optString("advisory", "N/A"),
-                                "N/A",
-                                description
-                        );
+                String description = obj.optJSONArray("details") != null
+                        ? obj.optJSONArray("details").optString(0, "N/A")
+                        : "N/A";
+                Map<String, String> fixStateMap = new HashMap<>();
+                JSONArray pkgStateArray = obj.optJSONArray("package_state");
+                if (pkgStateArray != null) {
+                    for (int i = 0; i < pkgStateArray.length(); i++) {
+                        JSONObject ps = pkgStateArray.getJSONObject(i);
+                        String product = ps.optString("product_name", "");
+                        if (product.toLowerCase().contains(productFilter.toLowerCase())) {
+                            CVEDetail detail = new CVEDetail(
+                                    cve,
+                                    severity,
+                                    publicDate,
+                                    cvssScore,
+                                    product,
+                                    ps.optString("package_name", "N/A"),
+                                    "",
+                                    ps.optString("fix_state", "Unknown"),
+                                    description
+                            );
+                            details.add(detail);
+                        }
                     }
                 }
-            }
 
-            JSONArray packageStates = jsonObject.optJSONArray("package_state");
-            if (packageStates != null) {
-                for (int i = 0; i < packageStates.length(); i++) {
-                    JSONObject pkg = packageStates.getJSONObject(i);
-                    String productName = pkg.optString("product_name");
-                    if (productName != null && productName.toLowerCase().contains(productFilter.toLowerCase())) {
-                        return new CVEDetail(
-                                cveId,
-                                severity,
-                                publicDate,
-                                cvssScore,
-                                productName,
-                                pkg.optString("package_name", "N/A"),
-                                "N/A",
-                                pkg.optString("fix_state", "N/A"),
-                                description
-                        );
+
+                JSONArray affected = obj.optJSONArray("affected_release");
+                if (affected != null) {
+                    for (int i = 0; i < affected.length(); i++) {
+                        JSONObject item = affected.getJSONObject(i);
+                        String product = item.optString("product_name", "");
+                        if (product.toLowerCase().contains(productFilter.toLowerCase())) {
+                            CVEDetail detail = new CVEDetail(
+                                    cve,
+                                    severity,
+                                    publicDate,
+                                    cvssScore,
+                                    product,
+                                    item.optString("package", "N/A"),
+                                    item.optString("advisory", "N/A"),
+                                    "",
+                                    description
+                            );
+                            details.add(detail);
+                        }
                     }
                 }
+
             }
         } catch (Exception e) {
-            System.out.println("Error processing " + cveId + ": " + e.getMessage());
+            System.out.println("Error retrieving CVE " + cve + ": " + e.getMessage());
         }
-        return null;
+        return details;
     }
+
 }
